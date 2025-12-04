@@ -31,7 +31,7 @@ export function MemoryList({ memories, selectedId, onSelect, onDelete, onClear }
           <Database className="w-5 h-5 text-primary" />
           <h3 className="font-semibold text-foreground">Memory Field</h3>
           <span className="text-xs text-muted-foreground font-mono">
-            ({memories.length})
+            {memories.length > 10 ? `(last 10 of ${memories.length.toLocaleString()})` : `(${memories.length})`}
           </span>
         </div>
         {memories.length > 0 && (
@@ -51,7 +51,7 @@ export function MemoryList({ memories, selectedId, onSelect, onDelete, onClear }
       ) : (
         <ScrollArea className="h-[400px] pr-4">
           <div className="space-y-2">
-            {memories.map((memory) => {
+            {memories.slice(0, 10).map((memory) => {
               const entanglements = getEntanglementCount(memory);
               const isSelected = memory.id === selectedId;
               
