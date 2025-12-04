@@ -18,7 +18,7 @@ interface BenchmarkResult {
 }
 
 export function StressTest({ onMemoriesGenerated }: StressTestProps) {
-  const [memoryCount, setMemoryCount] = useState(100);
+  const [memoryCount, setMemoryCount] = useState(1000);
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<BenchmarkResult[]>([]);
@@ -60,7 +60,7 @@ export function StressTest({ onMemoriesGenerated }: StressTestProps) {
     }
 
     // Hamilton products
-    const hamiltonCount = Math.min(memories.length * 10, 1000);
+    const hamiltonCount = Math.min(memories.length * 10, 10000);
     const hamiltonStart = performance.now();
     
     for (let i = 0; i < hamiltonCount; i++) {
@@ -90,7 +90,7 @@ export function StressTest({ onMemoriesGenerated }: StressTestProps) {
     }
 
     // Resonance calculations
-    const resonanceCount = Math.min(memories.length * 5, 500);
+    const resonanceCount = Math.min(memories.length * 5, 5000);
     const resonanceStart = performance.now();
     
     for (let i = 0; i < resonanceCount; i++) {
@@ -120,7 +120,7 @@ export function StressTest({ onMemoriesGenerated }: StressTestProps) {
     }
 
     // Entanglement detection
-    const entanglementCount = Math.min(memories.length * 3, 300);
+    const entanglementCount = Math.min(memories.length * 3, 3000);
     const entanglementStart = performance.now();
     let entangledPairs = 0;
     
@@ -171,13 +171,15 @@ export function StressTest({ onMemoriesGenerated }: StressTestProps) {
           <Slider
             value={[memoryCount]}
             onValueChange={([v]) => setMemoryCount(v)}
-            min={10}
-            max={1000}
-            step={10}
+            min={100}
+            max={1000000}
+            step={100}
             disabled={isRunning}
             className="flex-1"
           />
-          <span className="w-16 text-right font-mono text-sm">{memoryCount}</span>
+          <span className="w-20 text-right font-mono text-sm">
+            {memoryCount >= 1000000 ? '1M' : memoryCount >= 1000 ? `${(memoryCount/1000).toFixed(0)}K` : memoryCount}
+          </span>
         </div>
 
         <div className="flex gap-2">
