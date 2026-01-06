@@ -3,7 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, Zap, Target, Clock, Network } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Search, Zap, Target, Clock, Network, Settings, ChevronDown } from 'lucide-react';
 import { Memory, encodeText, resonanceScore, jaccardSimilarity, dot, normalize, entanglementStrength } from '@/lib/quaternion';
 
 interface MemoryDecoderProps {
@@ -29,8 +33,17 @@ const MemoryDecoder: React.FC<MemoryDecoderProps> = ({ memories, onSelectMemory 
   const [query, setQuery] = useState('');
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [searchTime, setSearchTime] = useState<number | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  
+  // Search settings
+  const [clusterThreshold, setClusterThreshold] = useState(0.3);
+  const [maxResults, setMaxResults] = useState(20);
+  const [alphaWeight, setAlphaWeight] = useState(0.6);
+  const [betaWeight, setBetaWeight] = useState(0.4);
+  const [enableClustering, setEnableClustering] = useState(true);
+  const [minResonance, setMinResonance] = useState(0);
 
-  const clusterResults = (results: SearchResult[], threshold = 0.3): Cluster[] => {
+  const clusterResults = (results: SearchResult[], threshold: number): Cluster[] => {
     if (results.length === 0) return [];
     
     const assigned = new Set<number>();
@@ -75,10 +88,12 @@ const MemoryDecoder: React.FC<MemoryDecoderProps> = ({ memories, onSelectMemory 
     
     const queryEncoded = encodeText(query);
     
-    const searchResults: SearchResult[] = memories.map(memory => {
+    let searchResults: SearchResult[] = memories.map(memory => {
       const resonance = resonanceScore(
         queryEncoded,
-        { quaternion: memory.quaternion, primeSignature: memory.primeSignature }
+        { quaternion: memory.quaternion, primeSignature: memory.primeSignature },
+        alphaWeight,
+        betaWeight
       );
       const similarity = jaccardSimilarity(queryEncoded.primeSignature, memory.primeSignature);
       const quaternionAlignment = Math.abs(dot(normalize(queryEncoded.quaternion), normalize(memory.quaternion)));
@@ -91,9 +106,17 @@ const MemoryDecoder: React.FC<MemoryDecoderProps> = ({ memories, onSelectMemory 
       };
     });
 
+    // Filter by minimum resonance
+    if (minResonance > 0) {
+      searchResults = searchResults.filter(r => r.resonance >= minResonance);
+    }
+
     searchResults.sort((a, b) => b.resonance - a.resonance);
-    const topResults = searchResults.slice(0, 20);
-    const clustered = clusterResults(topResults);
+    const topResults = searchResults.slice(0, maxResults);
+    
+    const clustered = enableClustering 
+      ? clusterResults(topResults, clusterThreshold)
+      : [{ id: 0, results: topResults, avgResonance: topResults.reduce((sum, r) => sum + r.resonance, 0) / topResults.length || 0 }];
     
     const endTime = performance.now();
     setSearchTime(endTime - startTime);
@@ -132,6 +155,112 @@ const MemoryDecoder: React.FC<MemoryDecoderProps> = ({ memories, onSelectMemory 
             Query
           </Button>
         </div>
+
+        {/* Search Settings */}
+        <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="w-full justify-between text-xs text-muted-foreground hover:text-foreground">
+              <span className="flex items-center gap-1">
+                <Settings className="w-3 h-3" />
+                Search Settings
+              </span>
+              <ChevronDown className={`w-3 h-3 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-3 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              {/* Alpha Weight */}
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label className="text-xs">Quaternion Weight (α)</Label>
+                  <span className="text-xs text-muted-foreground">{alphaWeight.toFixed(2)}</span>
+                </div>
+                <Slider
+                  value={[alphaWeight]}
+                  onValueChange={([v]) => { setAlphaWeight(v); setBetaWeight(1 - v); }}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  className="h-2"
+                />
+              </div>
+
+              {/* Beta Weight */}
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label className="text-xs">Signature Weight (β)</Label>
+                  <span className="text-xs text-muted-foreground">{betaWeight.toFixed(2)}</span>
+                </div>
+                <Slider
+                  value={[betaWeight]}
+                  onValueChange={([v]) => { setBetaWeight(v); setAlphaWeight(1 - v); }}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  className="h-2"
+                />
+              </div>
+
+              {/* Cluster Threshold */}
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label className="text-xs">Cluster Threshold</Label>
+                  <span className="text-xs text-muted-foreground">{clusterThreshold.toFixed(2)}</span>
+                </div>
+                <Slider
+                  value={[clusterThreshold]}
+                  onValueChange={([v]) => setClusterThreshold(v)}
+                  min={0.1}
+                  max={0.9}
+                  step={0.05}
+                  disabled={!enableClustering}
+                  className="h-2"
+                />
+              </div>
+
+              {/* Min Resonance */}
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label className="text-xs">Min Resonance</Label>
+                  <span className="text-xs text-muted-foreground">{(minResonance * 100).toFixed(0)}%</span>
+                </div>
+                <Slider
+                  value={[minResonance]}
+                  onValueChange={([v]) => setMinResonance(v)}
+                  min={0}
+                  max={0.9}
+                  step={0.05}
+                  className="h-2"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              {/* Max Results */}
+              <div className="flex items-center gap-2">
+                <Label className="text-xs whitespace-nowrap">Max Results:</Label>
+                <Input
+                  type="number"
+                  value={maxResults}
+                  onChange={(e) => setMaxResults(Math.max(1, Math.min(100, parseInt(e.target.value) || 20)))}
+                  className="w-16 h-7 text-xs"
+                  min={1}
+                  max={100}
+                />
+              </div>
+
+              {/* Enable Clustering */}
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="clustering"
+                  checked={enableClustering}
+                  onCheckedChange={setEnableClustering}
+                />
+                <Label htmlFor="clustering" className="text-xs">Enable Clustering</Label>
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
 
         {searchTime !== null && (
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
