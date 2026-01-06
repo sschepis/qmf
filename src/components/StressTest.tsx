@@ -1,9 +1,9 @@
 import { useState, useCallback, useRef } from 'react';
-import { Memory, generateRandomMemory, hamiltonProduct, resonanceScore, entanglementStrength } from '@/lib/quaternion';
+import { Memory, generateRandomMemory, hamiltonProduct, resonanceScore, entanglementStrength, encodeText } from '@/lib/quaternion';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
-import { Zap, Play, Square, Gauge, Clock, Database, Activity } from 'lucide-react';
+import { Zap, Play, Square, Gauge, Clock, Database, Activity, Search } from 'lucide-react';
 
 interface StressTestProps {
   onMemoriesGenerated: (memories: Memory[]) => void;
@@ -40,7 +40,7 @@ export function StressTest({ onMemoriesGenerated }: StressTestProps) {
       if (abortRef.current) break;
       memories.push(generateRandomMemory());
       if (i % Math.ceil(memoryCount / 20) === 0) {
-        setProgress((i / memoryCount) * 25);
+        setProgress((i / memoryCount) * 20);
         await new Promise(r => setTimeout(r, 0)); // Yield to UI
       }
     }
@@ -70,7 +70,7 @@ export function StressTest({ onMemoriesGenerated }: StressTestProps) {
       hamiltonProduct(a.quaternion, b.quaternion);
       
       if (i % Math.ceil(hamiltonCount / 20) === 0) {
-        setProgress(25 + (i / hamiltonCount) * 25);
+        setProgress(20 + (i / hamiltonCount) * 20);
         await new Promise(r => setTimeout(r, 0));
       }
     }
@@ -100,7 +100,7 @@ export function StressTest({ onMemoriesGenerated }: StressTestProps) {
       resonanceScore(a, b);
       
       if (i % Math.ceil(resonanceCount / 20) === 0) {
-        setProgress(50 + (i / resonanceCount) * 25);
+        setProgress(40 + (i / resonanceCount) * 20);
         await new Promise(r => setTimeout(r, 0));
       }
     }
@@ -132,7 +132,7 @@ export function StressTest({ onMemoriesGenerated }: StressTestProps) {
       if (strength >= 0.3) entangledPairs++;
       
       if (i % Math.ceil(entanglementCount / 20) === 0) {
-        setProgress(75 + (i / entanglementCount) * 25);
+        setProgress(60 + (i / entanglementCount) * 20);
         await new Promise(r => setTimeout(r, 0));
       }
     }
@@ -144,6 +144,66 @@ export function StressTest({ onMemoriesGenerated }: StressTestProps) {
       totalTime: entanglementTime,
       avgTime: entanglementTime / entanglementCount,
       opsPerSecond: (entanglementCount / entanglementTime) * 1000
+    });
+
+    if (abortRef.current) {
+      setIsRunning(false);
+      return;
+    }
+
+    // Decoding benchmark - simulates querying the field with clustering
+    const queryTexts = ['alpha beta', 'gamma delta', 'epsilon zeta', 'theta iota', 'kappa eta'];
+    const decodeStart = performance.now();
+    let totalDecodeOps = 0;
+    let clustersFound = 0;
+
+    for (const queryText of queryTexts) {
+      if (abortRef.current) break;
+      
+      const query = encodeText(queryText);
+      
+      // Score all memories against query
+      const searchResults = memories.map(mem => ({
+        memory: mem,
+        resonance: resonanceScore(query, { quaternion: mem.quaternion, primeSignature: mem.primeSignature })
+      }));
+      totalDecodeOps += memories.length;
+
+      // Sort and take top 20
+      searchResults.sort((a, b) => b.resonance - a.resonance);
+      const topResults = searchResults.slice(0, 20);
+
+      // Cluster top results by entanglement
+      const assigned = new Set<number>();
+      for (let i = 0; i < topResults.length; i++) {
+        if (assigned.has(i)) continue;
+        assigned.add(i);
+        clustersFound++;
+        
+        for (let j = i + 1; j < topResults.length; j++) {
+          if (assigned.has(j)) continue;
+          const strength = entanglementStrength(
+            { quaternion: topResults[i].memory.quaternion, primeSignature: topResults[i].memory.primeSignature },
+            { quaternion: topResults[j].memory.quaternion, primeSignature: topResults[j].memory.primeSignature }
+          );
+          totalDecodeOps++;
+          if (strength >= 0.3) {
+            assigned.add(j);
+          }
+        }
+      }
+
+      setProgress(80 + ((queryTexts.indexOf(queryText) + 1) / queryTexts.length) * 20);
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    const decodeTime = performance.now() - decodeStart;
+    benchmarks.push({
+      operation: 'Field Decoding',
+      count: totalDecodeOps,
+      totalTime: decodeTime,
+      avgTime: decodeTime / totalDecodeOps,
+      opsPerSecond: (totalDecodeOps / decodeTime) * 1000
     });
 
     setProgress(100);
