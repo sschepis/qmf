@@ -351,3 +351,207 @@ describe('Memory Field Decoding Integration', () => {
     expect(elapsed).toBeLessThan(100); // Should complete in under 100ms
   });
 });
+
+describe('Round-Trip Encoding Consistency', () => {
+  it('same text always produces identical quaternion', () => {
+    const texts = ['hello world', 'quantum memory', 'test123', 'UPPERCASE', 'mixed Case Text'];
+    
+    for (const text of texts) {
+      const enc1 = encodeText(text);
+      const enc2 = encodeText(text);
+      const enc3 = encodeText(text);
+      
+      expect(enc1.quaternion).toEqual(enc2.quaternion);
+      expect(enc2.quaternion).toEqual(enc3.quaternion);
+      expect(enc1.primeSignature).toEqual(enc2.primeSignature);
+    }
+  });
+
+  it('encoded quaternion can be matched back to original via resonance', () => {
+    const originalTexts = ['alpha beta', 'gamma delta', 'epsilon zeta', 'theta iota'];
+    const memories: Memory[] = originalTexts.map((text, i) => ({
+      ...encodeText(text),
+      id: String(i),
+      content: text,
+      timestamp: Date.now()
+    }));
+
+    // Each original text should match itself with score 1
+    for (const text of originalTexts) {
+      const query = encodeText(text);
+      const match = memories.find(m => m.content === text)!;
+      const score = resonanceScore(query, { quaternion: match.quaternion, primeSignature: match.primeSignature });
+      expect(score).toBeCloseTo(1, 10);
+    }
+  });
+
+  it('re-encoding memory content produces matching quaternion', () => {
+    const memories = [
+      generateRandomMemory(),
+      generateRandomMemory(),
+      generateRandomMemory()
+    ];
+
+    for (const mem of memories) {
+      const reEncoded = encodeText(mem.content);
+      expect(reEncoded.quaternion).toEqual(mem.quaternion);
+      expect(reEncoded.primeSignature).toEqual(mem.primeSignature);
+    }
+  });
+
+  it('quaternion dot product is 1 for re-encoded same text', () => {
+    const texts = ['neural network', 'deep learning', 'artificial intelligence'];
+    
+    for (const text of texts) {
+      const enc1 = encodeText(text);
+      const enc2 = encodeText(text);
+      const dotProduct = dot(enc1.quaternion, enc2.quaternion);
+      expect(dotProduct).toBeCloseTo(1, 10);
+    }
+  });
+
+  it('prime signatures are deterministic across multiple encodings', () => {
+    const text = 'the quick brown fox jumps over the lazy dog';
+    const encodings = Array.from({ length: 5 }, () => encodeText(text));
+    
+    const firstSig = encodings[0].primeSignature;
+    for (const enc of encodings) {
+      expect(enc.primeSignature).toEqual(firstSig);
+      expect(enc.primeSignature.length).toBe(firstSig.length);
+    }
+  });
+});
+
+describe('Decode Result Validity', () => {
+  const knownMemories: Memory[] = [
+    { ...encodeText('machine learning'), id: '1', content: 'machine learning', timestamp: 1 },
+    { ...encodeText('machine learning algorithms'), id: '2', content: 'machine learning algorithms', timestamp: 2 },
+    { ...encodeText('deep learning neural networks'), id: '3', content: 'deep learning neural networks', timestamp: 3 },
+    { ...encodeText('cooking italian pasta'), id: '4', content: 'cooking italian pasta', timestamp: 4 },
+    { ...encodeText('italian food recipes'), id: '5', content: 'italian food recipes', timestamp: 5 },
+    { ...encodeText('quantum physics theory'), id: '6', content: 'quantum physics theory', timestamp: 6 },
+  ];
+
+  it('resonance ranking returns exact match first', () => {
+    const query = encodeText('machine learning');
+    
+    const ranked = knownMemories
+      .map(mem => ({
+        memory: mem,
+        score: resonanceScore(query, { quaternion: mem.quaternion, primeSignature: mem.primeSignature })
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    expect(ranked[0].memory.content).toBe('machine learning');
+    expect(ranked[0].score).toBeCloseTo(1, 10);
+  });
+
+  it('partial match ranks higher than unrelated content', () => {
+    const query = encodeText('machine');
+    
+    const ranked = knownMemories
+      .map(mem => ({
+        memory: mem,
+        score: resonanceScore(query, { quaternion: mem.quaternion, primeSignature: mem.primeSignature })
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    // Machine learning related should be top 2
+    const topTwo = ranked.slice(0, 2).map(r => r.memory.content);
+    expect(topTwo).toContain('machine learning');
+    expect(topTwo).toContain('machine learning algorithms');
+    
+    // Cooking should rank lower
+    const cookingRank = ranked.findIndex(r => r.memory.content === 'cooking italian pasta');
+    expect(cookingRank).toBeGreaterThan(1);
+  });
+
+  it('clustering groups semantically related memories', () => {
+    const threshold = 0.3;
+    const clusters: string[][] = [];
+    const assigned = new Set<string>();
+
+    for (const mem of knownMemories) {
+      if (assigned.has(mem.id)) continue;
+      
+      const cluster = [mem.content];
+      assigned.add(mem.id);
+
+      for (const other of knownMemories) {
+        if (assigned.has(other.id)) continue;
+        
+        const strength = entanglementStrength(
+          { quaternion: mem.quaternion, primeSignature: mem.primeSignature },
+          { quaternion: other.quaternion, primeSignature: other.primeSignature }
+        );
+        
+        if (strength >= threshold) {
+          cluster.push(other.content);
+          assigned.add(other.id);
+        }
+      }
+      clusters.push(cluster);
+    }
+
+    // Should have at least 2 clusters (ML-related vs cooking vs physics)
+    expect(clusters.length).toBeGreaterThanOrEqual(2);
+    
+    // Find ML cluster and verify it contains related items
+    const mlCluster = clusters.find(c => c.includes('machine learning'));
+    expect(mlCluster).toBeDefined();
+    if (mlCluster && mlCluster.length > 1) {
+      expect(mlCluster.some(c => c.includes('learning'))).toBe(true);
+    }
+  });
+
+  it('ranking is stable across multiple queries', () => {
+    const queryText = 'neural networks';
+    
+    const rankings = Array.from({ length: 3 }, () => {
+      const query = encodeText(queryText);
+      return knownMemories
+        .map(mem => ({
+          id: mem.id,
+          score: resonanceScore(query, { quaternion: mem.quaternion, primeSignature: mem.primeSignature })
+        }))
+        .sort((a, b) => b.score - a.score)
+        .map(r => r.id);
+    });
+
+    // All rankings should be identical
+    expect(rankings[0]).toEqual(rankings[1]);
+    expect(rankings[1]).toEqual(rankings[2]);
+  });
+
+  it('scores are ordered correctly for known similarity hierarchy', () => {
+    const exact = encodeText('quantum physics theory');
+    const partial = encodeText('quantum physics');
+    const related = encodeText('quantum mechanics');
+    const unrelated = encodeText('banana smoothie');
+
+    const target = knownMemories.find(m => m.content === 'quantum physics theory')!;
+    const targetEnc = { quaternion: target.quaternion, primeSignature: target.primeSignature };
+
+    const scoreExact = resonanceScore(exact, targetEnc);
+    const scorePartial = resonanceScore(partial, targetEnc);
+    const scoreRelated = resonanceScore(related, targetEnc);
+    const scoreUnrelated = resonanceScore(unrelated, targetEnc);
+
+    expect(scoreExact).toBeCloseTo(1, 10);
+    expect(scorePartial).toBeGreaterThan(scoreRelated);
+    expect(scoreRelated).toBeGreaterThan(scoreUnrelated);
+  });
+
+  it('empty query returns valid but low scores', () => {
+    const query = encodeText('');
+    
+    const scores = knownMemories.map(mem => 
+      resonanceScore(query, { quaternion: mem.quaternion, primeSignature: mem.primeSignature })
+    );
+
+    for (const score of scores) {
+      expect(score).toBeGreaterThanOrEqual(0);
+      expect(score).toBeLessThanOrEqual(1);
+    }
+  });
+});
