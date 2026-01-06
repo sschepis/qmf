@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import { Memory, Quaternion, encodeText } from '@/lib/quaternion';
 import { QuaternionVisualizer } from '@/components/QuaternionVisualizer';
 import { MetricsPanel } from '@/components/MetricsPanel';
-import { CompressionMetrics } from '@/components/CompressionMetrics';
 import { MemoryEncoder } from '@/components/MemoryEncoder';
 import MemoryDecoder from '@/components/MemoryDecoder';
 import { HamiltonCalculator } from '@/components/HamiltonCalculator';
@@ -11,7 +10,7 @@ import { StressTest } from '@/components/StressTest';
 import { MemoryList } from '@/components/MemoryList';
 import TestRunner from '@/components/TestRunner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Atom, FlaskConical, Gauge, Zap, GitBranch, RotateCcw, Minimize2, Search, TestTube } from 'lucide-react';
+import { Atom, FlaskConical, Gauge, Zap, GitBranch, RotateCcw, Search, TestTube } from 'lucide-react';
 
 const Index = () => {
   const [memories, setMemories] = useState<Memory[]>([]);
@@ -136,7 +135,7 @@ const Index = () => {
           {/* Right Panel - Tools & Metrics */}
           <div className="lg:col-span-7 space-y-6">
             <Tabs defaultValue="encode" className="w-full">
-              <TabsList className="grid w-full grid-cols-8 bg-secondary/50">
+              <TabsList className="grid w-full grid-cols-7 bg-secondary/50">
                 <TabsTrigger value="encode" className="flex items-center gap-1 text-xs">
                   <Zap className="w-3 h-3" />
                   Encode
@@ -164,10 +163,6 @@ const Index = () => {
                 <TabsTrigger value="metrics" className="flex items-center gap-1 text-xs">
                   <Gauge className="w-3 h-3" />
                   Metrics
-                </TabsTrigger>
-                <TabsTrigger value="compression" className="flex items-center gap-1 text-xs">
-                  <Minimize2 className="w-3 h-3" />
-                  Compress
                 </TabsTrigger>
               </TabsList>
 
@@ -213,11 +208,6 @@ const Index = () => {
                 </div>
               </TabsContent>
 
-              <TabsContent value="compression" className="mt-4">
-                <div className="bg-card rounded-xl border border-border p-4">
-                  <CompressionMetrics memories={memories} />
-                </div>
-              </TabsContent>
             </Tabs>
 
             {/* Quick Info Panel */}
