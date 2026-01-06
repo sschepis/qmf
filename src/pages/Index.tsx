@@ -4,12 +4,13 @@ import { QuaternionVisualizer } from '@/components/QuaternionVisualizer';
 import { MetricsPanel } from '@/components/MetricsPanel';
 import { CompressionMetrics } from '@/components/CompressionMetrics';
 import { MemoryEncoder } from '@/components/MemoryEncoder';
+import MemoryDecoder from '@/components/MemoryDecoder';
 import { HamiltonCalculator } from '@/components/HamiltonCalculator';
 import { SlerpVisualizer } from '@/components/SlerpVisualizer';
 import { StressTest } from '@/components/StressTest';
 import { MemoryList } from '@/components/MemoryList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Atom, FlaskConical, Gauge, Zap, GitBranch, RotateCcw, Minimize2 } from 'lucide-react';
+import { Atom, FlaskConical, Gauge, Zap, GitBranch, RotateCcw, Minimize2, Search } from 'lucide-react';
 
 const Index = () => {
   const [memories, setMemories] = useState<Memory[]>([]);
@@ -134,10 +135,14 @@ const Index = () => {
           {/* Right Panel - Tools & Metrics */}
           <div className="lg:col-span-7 space-y-6">
             <Tabs defaultValue="encode" className="w-full">
-              <TabsList className="grid w-full grid-cols-6 bg-secondary/50">
+              <TabsList className="grid w-full grid-cols-7 bg-secondary/50">
                 <TabsTrigger value="encode" className="flex items-center gap-1 text-xs">
                   <Zap className="w-3 h-3" />
                   Encode
+                </TabsTrigger>
+                <TabsTrigger value="decode" className="flex items-center gap-1 text-xs">
+                  <Search className="w-3 h-3" />
+                  Decode
                 </TabsTrigger>
                 <TabsTrigger value="hamilton" className="flex items-center gap-1 text-xs">
                   <RotateCcw className="w-3 h-3" />
@@ -164,6 +169,12 @@ const Index = () => {
               <TabsContent value="encode" className="mt-4">
                 <div className="bg-card rounded-xl border border-border p-4">
                   <MemoryEncoder onEncode={handleEncode} />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="decode" className="mt-4">
+                <div className="bg-card rounded-xl border border-border p-4">
+                  <MemoryDecoder memories={memories} onSelectMemory={handleSelectMemory} />
                 </div>
               </TabsContent>
 
