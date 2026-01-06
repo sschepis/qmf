@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, Zap, Target, Clock } from 'lucide-react';
-import { Memory, encodeText, resonanceScore, jaccardSimilarity, dot, normalize } from '@/lib/quaternion';
+import { Search, Zap, Target, Clock, Network } from 'lucide-react';
+import { Memory, encodeText, resonanceScore, jaccardSimilarity, dot, normalize, entanglementStrength } from '@/lib/quaternion';
 
 interface MemoryDecoderProps {
   memories: Memory[];
@@ -16,12 +16,57 @@ interface SearchResult {
   resonance: number;
   similarity: number;
   quaternionAlignment: number;
+  clusterId?: number;
+}
+
+interface Cluster {
+  id: number;
+  results: SearchResult[];
+  avgResonance: number;
 }
 
 const MemoryDecoder: React.FC<MemoryDecoderProps> = ({ memories, onSelectMemory }) => {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [clusters, setClusters] = useState<Cluster[]>([]);
   const [searchTime, setSearchTime] = useState<number | null>(null);
+
+  const clusterResults = (results: SearchResult[], threshold = 0.3): Cluster[] => {
+    if (results.length === 0) return [];
+    
+    const assigned = new Set<number>();
+    const clusterList: Cluster[] = [];
+    
+    for (let i = 0; i < results.length; i++) {
+      if (assigned.has(i)) continue;
+      
+      const cluster: SearchResult[] = [results[i]];
+      assigned.add(i);
+      
+      for (let j = i + 1; j < results.length; j++) {
+        if (assigned.has(j)) continue;
+        
+        const strength = entanglementStrength(
+          { quaternion: results[i].memory.quaternion, primeSignature: results[i].memory.primeSignature },
+          { quaternion: results[j].memory.quaternion, primeSignature: results[j].memory.primeSignature }
+        );
+        
+        if (strength >= threshold) {
+          cluster.push(results[j]);
+          assigned.add(j);
+        }
+      }
+      
+      const clusterId = clusterList.length;
+      cluster.forEach(r => r.clusterId = clusterId);
+      clusterList.push({
+        id: clusterId,
+        results: cluster,
+        avgResonance: cluster.reduce((sum, r) => sum + r.resonance, 0) / cluster.length
+      });
+    }
+    
+    return clusterList.sort((a, b) => b.avgResonance - a.avgResonance);
+  };
 
   const handleSearch = () => {
     if (!query.trim() || memories.length === 0) return;
@@ -47,10 +92,12 @@ const MemoryDecoder: React.FC<MemoryDecoderProps> = ({ memories, onSelectMemory 
     });
 
     searchResults.sort((a, b) => b.resonance - a.resonance);
+    const topResults = searchResults.slice(0, 20);
+    const clustered = clusterResults(topResults);
     
     const endTime = performance.now();
     setSearchTime(endTime - startTime);
-    setResults(searchResults.slice(0, 20));
+    setClusters(clustered);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -93,40 +140,51 @@ const MemoryDecoder: React.FC<MemoryDecoderProps> = ({ memories, onSelectMemory 
               {searchTime.toFixed(2)}ms
             </span>
             <span>
-              {results.length} results from {memories.length.toLocaleString()} memories
+              {clusters.reduce((sum, c) => sum + c.results.length, 0)} results in {clusters.length} clusters
             </span>
           </div>
         )}
 
-        {results.length > 0 ? (
+        {clusters.length > 0 ? (
           <ScrollArea className="h-[300px]">
-            <div className="space-y-2 pr-4">
-              {results.map((result, index) => (
-                <div
-                  key={result.memory.id}
-                  onClick={() => onSelectMemory?.(result.memory)}
-                  className="p-3 rounded-lg bg-background/50 border border-border/30 hover:border-primary/50 cursor-pointer transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-mono text-muted-foreground">#{index + 1}</span>
-                        <span className="text-sm font-medium truncate">{result.memory.content}</span>
+            <div className="space-y-4 pr-4">
+              {clusters.map((cluster) => (
+                <div key={cluster.id} className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Network className="w-3 h-3 text-primary" />
+                    <span className="font-medium">Cluster {cluster.id + 1}</span>
+                    <span>({cluster.results.length} memories, avg resonance: {(cluster.avgResonance * 100).toFixed(1)}%)</span>
+                  </div>
+                  <div className="space-y-1 pl-4 border-l-2 border-primary/30">
+                    {cluster.results.map((result, index) => (
+                      <div
+                        key={result.memory.id}
+                        onClick={() => onSelectMemory?.(result.memory)}
+                        className="p-2 rounded-lg bg-background/50 border border-border/30 hover:border-primary/50 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-mono text-muted-foreground">#{index + 1}</span>
+                              <span className="text-sm font-medium truncate">{result.memory.content}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-3 text-xs">
+                              <span className="flex items-center gap-1 text-primary">
+                                <Zap className="w-3 h-3" />
+                                {(result.resonance * 100).toFixed(1)}%
+                              </span>
+                              <span className="flex items-center gap-1 text-muted-foreground">
+                                <Target className="w-3 h-3" />
+                                {(result.similarity * 100).toFixed(1)}%
+                              </span>
+                              <span className="text-muted-foreground">
+                                Q: {(result.quaternionAlignment * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-3 text-xs">
-                        <span className="flex items-center gap-1 text-primary">
-                          <Zap className="w-3 h-3" />
-                          Resonance: {(result.resonance * 100).toFixed(1)}%
-                        </span>
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <Target className="w-3 h-3" />
-                          Similarity: {(result.similarity * 100).toFixed(1)}%
-                        </span>
-                        <span className="text-muted-foreground">
-                          Q-Align: {(result.quaternionAlignment * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               ))}
