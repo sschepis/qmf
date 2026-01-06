@@ -197,6 +197,70 @@ const TestRunner = () => {
       expect(lower.quaternion.w).toBe(upper.quaternion.w);
     }));
     allSuites.push({ name: 'Text Encoding', results: encodeResults });
+    setProgress(50);
+    await new Promise(r => setTimeout(r, 0));
+
+    // Text Decoding (Round-trip & Validity)
+    const decodeResults: TestResult[] = [];
+    decodeResults.push(runTest('round-trip produces identical quaternion', () => {
+      const texts = ['hello world', 'quantum memory', 'test123'];
+      for (const text of texts) {
+        const enc1 = encodeText(text);
+        const enc2 = encodeText(text);
+        expect(enc1.quaternion.w).toBe(enc2.quaternion.w);
+        expect(enc1.quaternion.x).toBe(enc2.quaternion.x);
+      }
+    }));
+    decodeResults.push(runTest('encoded matches back via resonance = 1', () => {
+      const text = 'alpha beta gamma';
+      const encoded = encodeText(text);
+      const score = resonanceScore(encoded, encoded);
+      expect(score).toBeCloseTo(1, 10);
+    }));
+    decodeResults.push(runTest('dot product = 1 for same text re-encoded', () => {
+      const enc1 = encodeText('neural network');
+      const enc2 = encodeText('neural network');
+      expect(dot(enc1.quaternion, enc2.quaternion)).toBeCloseTo(1, 10);
+    }));
+    decodeResults.push(runTest('prime signatures deterministic', () => {
+      const enc1 = encodeText('the quick brown fox');
+      const enc2 = encodeText('the quick brown fox');
+      expect(enc1.primeSignature.length).toBe(enc2.primeSignature.length);
+      expect(enc1.primeSignature[0]).toBe(enc2.primeSignature[0]);
+    }));
+    decodeResults.push(runTest('ranking returns exact match first', () => {
+      const memories: Memory[] = [
+        { ...encodeText('machine learning'), id: '1', content: 'machine learning', timestamp: 1 },
+        { ...encodeText('cooking pasta'), id: '2', content: 'cooking pasta', timestamp: 2 },
+        { ...encodeText('quantum physics'), id: '3', content: 'quantum physics', timestamp: 3 },
+      ];
+      const query = encodeText('machine learning');
+      const ranked = memories
+        .map(m => ({ m, score: resonanceScore(query, m) }))
+        .sort((a, b) => b.score - a.score);
+      expect(ranked[0].m.content).toBe('machine learning');
+      expect(ranked[0].score).toBeCloseTo(1, 10);
+    }));
+    decodeResults.push(runTest('partial match ranks higher than unrelated', () => {
+      const memories: Memory[] = [
+        { ...encodeText('machine learning algorithms'), id: '1', content: 'machine learning algorithms', timestamp: 1 },
+        { ...encodeText('banana smoothie'), id: '2', content: 'banana smoothie', timestamp: 2 },
+      ];
+      const query = encodeText('machine');
+      const scores = memories.map(m => ({ content: m.content, score: resonanceScore(query, m) }));
+      const mlScore = scores.find(s => s.content.includes('machine'))!.score;
+      const bananaScore = scores.find(s => s.content.includes('banana'))!.score;
+      expect(mlScore).toBeGreaterThan(bananaScore);
+    }));
+    decodeResults.push(runTest('score ordering hierarchy valid', () => {
+      const target = encodeText('quantum physics theory');
+      const exact = encodeText('quantum physics theory');
+      const partial = encodeText('quantum physics');
+      const unrelated = encodeText('banana smoothie');
+      expect(resonanceScore(exact, target)).toBeGreaterThan(resonanceScore(partial, target));
+      expect(resonanceScore(partial, target)).toBeGreaterThan(resonanceScore(unrelated, target));
+    }));
+    allSuites.push({ name: 'Text Decoding', results: decodeResults });
     setProgress(60);
     await new Promise(r => setTimeout(r, 0));
 
