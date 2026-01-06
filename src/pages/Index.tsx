@@ -9,8 +9,9 @@ import { HamiltonCalculator } from '@/components/HamiltonCalculator';
 import { SlerpVisualizer } from '@/components/SlerpVisualizer';
 import { StressTest } from '@/components/StressTest';
 import { MemoryList } from '@/components/MemoryList';
+import TestRunner from '@/components/TestRunner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Atom, FlaskConical, Gauge, Zap, GitBranch, RotateCcw, Minimize2, Search } from 'lucide-react';
+import { Atom, FlaskConical, Gauge, Zap, GitBranch, RotateCcw, Minimize2, Search, TestTube } from 'lucide-react';
 
 const Index = () => {
   const [memories, setMemories] = useState<Memory[]>([]);
@@ -135,7 +136,7 @@ const Index = () => {
           {/* Right Panel - Tools & Metrics */}
           <div className="lg:col-span-7 space-y-6">
             <Tabs defaultValue="encode" className="w-full">
-              <TabsList className="grid w-full grid-cols-7 bg-secondary/50">
+              <TabsList className="grid w-full grid-cols-8 bg-secondary/50">
                 <TabsTrigger value="encode" className="flex items-center gap-1 text-xs">
                   <Zap className="w-3 h-3" />
                   Encode
@@ -155,6 +156,10 @@ const Index = () => {
                 <TabsTrigger value="stress" className="flex items-center gap-1 text-xs">
                   <FlaskConical className="w-3 h-3" />
                   Stress
+                </TabsTrigger>
+                <TabsTrigger value="tests" className="flex items-center gap-1 text-xs">
+                  <TestTube className="w-3 h-3" />
+                  Tests
                 </TabsTrigger>
                 <TabsTrigger value="metrics" className="flex items-center gap-1 text-xs">
                   <Gauge className="w-3 h-3" />
@@ -193,6 +198,12 @@ const Index = () => {
               <TabsContent value="stress" className="mt-4">
                 <div className="bg-card rounded-xl border border-border p-4">
                   <StressTest onMemoriesGenerated={handleMemoriesGenerated} />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="tests" className="mt-4">
+                <div className="bg-card rounded-xl border border-border p-4">
+                  <TestRunner />
                 </div>
               </TabsContent>
 
